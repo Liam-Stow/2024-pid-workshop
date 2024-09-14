@@ -18,6 +18,9 @@
           "Gains": {
             "open": true
           },
+          "Motion Config": {
+            "open": true
+          },
           "open": true
         },
         "open": true
@@ -66,8 +69,18 @@
               ],
               "id": "NT:/SmartDashboard/motor/Voltage",
               "yAxis": 1
+            },
+            {
+              "color": [
+                0.7686275243759155,
+                0.30588236451148987,
+                0.32156863808631897,
+                1.0
+              ],
+              "id": "NT:/SmartDashboard/motor/Profile Position Target"
             }
           ],
+          "viewTime": 5.0,
           "yaxis2": true
         }
       ]

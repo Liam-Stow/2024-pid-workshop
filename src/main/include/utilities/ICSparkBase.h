@@ -111,23 +111,24 @@ class ICSpark : public wpi::Sendable {
   void SetVelocityTarget(units::turns_per_second_t target, units::volt_t arbFeedForward = 0.0_V);
 
   /**
-   * Update motion profile targets and feedforward calculations. This is
-   * required to be called periodically when you use kG gains or a motion
-   * profile.
-   * This only has an effect when in one of the following modes: Motion Profile,
-   * Smart Motion, Position, Velocty.
+   * Update motion profile targets and feedforward calculations. This is required to be called
+   * periodically when you use a motion profile using the Motion Profile or Smart Motion modes.
    *
-   * @param loopTime The frequency at which this is being called. 20ms is the
-   * default loop time for WPILib periodic functions. Generally, faster loop
-   * times result in smoother controls at the cost of processing time.
+   * @param loopTime The frequency at which this is being called. 20ms is the default loop time for
+   * WPILib periodic functions.
    */
   void UpdateControls(units::second_t loopTime = 20_ms);
 
   /**
-   * Calculate how many volts to send to the motor from the feedforward model.
-   * (Before any feedback control is applied).
-  */
-  units::volt_t CalculateFeedforward(units::turns_per_second_squared_t accelerationTarget = 0_tr_per_s_sq);
+   * Calculate how many volts to send to the motor from the feedforward model configured with
+   * SetFeedforwardGains().
+   *
+   * @param pos The position target
+   * @param vel The velocity target
+   * @param accel The acceleration target
+   */
+  units::volt_t CalculateFeedforward(units::turn_t pos, units::turns_per_second_t vel,
+                                     units::turns_per_second_squared_t accel = 0_tr_per_s_sq);
 
   /**
    * Gets the current closed loop position target if there is one. Zero otherwise.
@@ -217,15 +218,15 @@ class ICSpark : public wpi::Sendable {
    * maximum acceleration, and position tolerance must be set.
    *
    * @param maxVelocity The maxmimum velocity for the motion profile.
-   *
    * @param maxAcceleration The maxmimum acceleration for the motion profile.
-   *
    * @param tolerance When the position of the motor is within tolerance, the control mode will stop
    * applying power (arbitary feedforward can still apply power).
    */
-  void ConfigMotion(units::turns_per_second_t maxVelocity,
-                         units::turns_per_second_squared_t maxAcceleration,
-                         units::turn_t tolerance);
+  void SetMotionConstraints(units::turns_per_second_t maxVelocity,
+                            units::turns_per_second_squared_t maxAcceleration,
+                            units::turn_t tolerance);
+  void SetMotionMaxVel(units::turns_per_second_t maxVelocity);
+  void SetMotionMaxAccel(units::turns_per_second_squared_t maxAcceleration);
 
   /**
    * Set the conversion factor for position, velocity and acceleration of the encoder. The native
@@ -236,31 +237,39 @@ class ICSpark : public wpi::Sendable {
   void SetConversionFactor(double rotationsToDesired);
 
   /**
-   * Set the Proportional, Integral, Derivative and static FeedForward gain constants of the PIDF
-   * controller on the SPARK MAX. This uses the Set Parameter API and should be used infrequently.
+   * Set the Proportional, Integral, Derivative and static FeedForward gain constants of the PID
+   * controller on the SPARK. This uses the Set Parameter API and should be used infrequently.
    * The parameters do not presist unless burnFlash() is called.
    *
    * @param P The proportional gain value, must be positive
    * @param I The Integral gain value, must be positive
    * @param D The Derivative gain value, must be positive
-   * by the target before being added to the final output power.
    */
   void SetFeedbackGains(double P, double I, double D);
   void SetFeedbackProportional(double P);
   void SetFeedbackIntegral(double I);
   void SetFeedbackDerivative(double D);
 
-  void SetFeedforwardGains(
-      units::volt_t S = 0_V, 
-      units::volt_t G = 0_V,
-      bool gravityIsRotational = false,
-      VoltsPerTps V = 0_V / 1_tps,
-      VoltsPerTpsSq A = 0_V / 1_tr_per_s_sq);
-  void SetFeedforwardStaticFriction(units::volt_t S);
-  void SetFeedforwardLinearGravity(units::volt_t linearG);
-  void SetFeedforwardRotationalGravity(units::volt_t rotationalG);
-  void SetFeedforwardVelocity(VoltsPerTps V);
-  void SetFeedforwardAcceleration(VoltsPerTpsSq A);
+  /**
+   * Set the Static Friction, Gravity, Velocity and Acceleration gain constants of the feed forward
+   * model. This uses the Set Parameter API and should be used infrequently. The parameters do not
+   * presist unless burnFlash() is called.
+   *
+   * @param P The proportional gain value, must be positive
+   * @param I The Integral gain value, must be positive
+   * @param D The Derivative gain value, must be positive
+   * @param updateSparkNow Whether to calculate and send the new FF voltage to the spark over CAN as
+   * part of this call. This will use the (blocking) Set Parameter API of the Spark and should be
+   * used infrequently. The parameters do not presist unless burnFlash() is called. 
+   */
+  void SetFeedforwardGains(units::volt_t S = 0_V, units::volt_t G = 0_V,
+                           bool gravityIsRotational = false, VoltsPerTps V = 0_V / 1_tps,
+                           VoltsPerTpsSq A = 0_V / 1_tr_per_s_sq, bool updateSparkNow = true);
+  void SetFeedforwardStaticFriction(units::volt_t S, bool updateSparkNow = true);
+  void SetFeedforwardLinearGravity(units::volt_t linearG, bool updateSparkNow = true);
+  void SetFeedforwardRotationalGravity(units::volt_t rotationalG, bool updateSparkNow = true);
+  void SetFeedforwardVelocity(VoltsPerTps V, bool updateSparkNow = true);
+  void SetFeedforwardAcceleration(VoltsPerTpsSq A, bool updateSparkNow = true);
 
   /**
    * Set the min amd max output for the closed loop mode.
@@ -337,6 +346,7 @@ class ICSpark : public wpi::Sendable {
   VoltsPerTps _feedforwardVelocity = 0_V / 1_tps;
   VoltsPerTpsSq _feedforwardAcceleration = 0_V / 1_tr_per_s_sq;
   units::volt_t _arbFeedForward = 0.0_V;
+  units::volt_t _latestModelFeedForward = 0.0_V;
 
   // Control References (Targets)
   using MPState = frc::TrapezoidProfile<units::turns>::State;
@@ -347,7 +357,8 @@ class ICSpark : public wpi::Sendable {
       {units::turns_per_second_t{0},
        units::turns_per_second_squared_t{0}}  // constraints updated by SetMotionConfig
   };
-  MPState CalcNextMotionTarget(units::second_t lookahead = 20_ms);
+  MPState CalcNextMotionTarget(MPState current, units::turn_t goalPosition,
+                               units::second_t lookahead = 20_ms);
   MPState _latestMotionTarget;
 
   // Control Type (aka mode) management
